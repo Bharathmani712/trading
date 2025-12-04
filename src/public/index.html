@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>BTC Source & Price Control</title>
+    <style>
+      body {
+        font-family: sans-serif;
+        padding: 20px;
+      }
+      button {
+        padding: 10px 16px;
+        font-size: 15px;
+        margin-right: 10px;
+        cursor: pointer;
+      }
+      #info {
+        margin-top: 15px;
+        font-size: 16px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>BTC Price Controller</h1>
+
+    <div>
+      <button id="toggleModeButton">Loading...</button>
+      <button id="priceUpButton">Price Up</button>
+      <button id="priceDownButton">Price Down</button>
+    </div>
+
+    <div id="info">
+      <div id="currentMode"></div>
+      <div id="currentDirection"></div>
+      <div id="currentPrice"></div>
+    </div>
+
+    <script>
+      const toggleModeButton = document.getElementById("toggleModeButton");
+      const priceUpButton = document.getElementById("priceUpButton");
+      const priceDownButton = document.getElementById("priceDownButton");
+
+      const currentModeDiv = document.getElementById("currentMode");
+      const currentDirectionDiv = document.getElementById("currentDirection");
+      const currentPriceDiv = document.getElementById("currentPrice");
+
+      let currentFlag = 1; // 1 = API, 0 = MANUAL
+      let currentDirection = "none";
+
+      function updateUI() {
+        const modeText = currentFlag === 1 ? "API" : "MANUAL";
+        currentModeDiv.textContent = "Current mode: " + modeText;
+
+        currentDirectionDiv.textContent =
+          "Manual direction: " +
+          (currentFlag === 0 ? currentDirection : "- (API mode)");
+
+        toggleModeButton.textContent =
+          currentFlag === 1 ? "Switch to MANUAL" : "Switch to API";
+
+        // Enable manual buttons only in MANUAL mode
+        priceUpButton.disabled = currentFlag === 1;
+        priceDownButton.disabled = currentFlag === 1;
+      }
+
+      async function fetchMode() {
+        const res = await fetch("/mode");
+        const data = await res.json();
+        currentFlag = data.flag;
+        currentDirection = data.manualDirection || "none";
+        updateUI();
+      }
+
+      async function fetchPrice() {
+        const res = await fetch("/btc-price");
+        const data = await res.json();
+        if (data.price) {
+          currentPriceDiv.textContent = `Current BTCUSDT: ${data.price} (${data.mode})`;
+          currentDirection = data.manualDirection || "none";
+        } else {
+          currentPriceDiv.textContent = "Current BTCUSDT: (no data yet)";
+        }
+        updateUI();
+      }
+
+      // Toggle between API and MANUAL
+      toggleModeButton.addEventListener("click", async () => {
+        const newFlag = currentFlag === 1 ? 0 : 1;
+
+        const res = await fetch("/mode", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ flag: newFlag }),
+        });
+
+        const data = await res.json();
+        currentFlag = data.flag;
+        currentDirection = data.manualDirection || "none";
+        // When switching to MANUAL, backend resets price to 100 & direction 'none'
+        updateUI();
+      });
+
+      // Set manual direction to UP
+      priceUpButton.addEventListener("click", async () => {
+        const res = await fetch("/manual-direction", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ direction: "up" }),
+        });
+        const data = await res.json();
+        currentDirection = data.manualDirection;
+        updateUI();
+      });
+
+      // Set manual direction to DOWN
+      priceDownButton.addEventListener("click", async () => {
+        const res = await fetch("/manual-direction", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ direction: "down" }),
+        });
+        const data = await res.json();
+        currentDirection = data.manualDirection;
+        updateUI();
+      });
+
+      // Initial load
+      fetchMode();
+      fetchPrice();
+      // Refresh price every 2 seconds
+      setInterval(fetchPrice, 2000);
+    </script>
+  </body>
+</html>
