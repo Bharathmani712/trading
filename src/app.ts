@@ -253,35 +253,36 @@ function formatToTwoDecimals(num: number | string): string {
 }
 
 // ====== API MODE: get price from Delta (ticker) ======
-// ====== DELTA EXCHANGE (NODE CLIENT): get BTCUSDT 24hr ticker ======
+// ====== API MODE: get price from Delta (REST v2, no axios) ======
 async function getBtcPriceFromDelta(): Promise<string | null> {
   try {
-    const client = await deltaClientPromise;
+    const res = await fetch("https://api.delta.exchange/v2/tickers/BTCUSDT");
 
-    // This maps to /products/ticker/24hr?symbol=BTCUSDT
-    // operationId in swagger: "get24hrTicker" → node client: get24hrTicker
-    const response = await client.apis.Products.get24hrTicker({
-      symbol: "BTCUSDT", // make sure this matches the exact symbol you want
-    });
+    if (!res.ok) {
+      console.error("Delta API HTTP error:", res.status, res.statusText);
+      return null;
+    }
 
-    // delta-rest-client returns Buffer in response.data
-    const body = JSON.parse(response.data.toString());
+    const data = (await res.json()) as any;
 
-    // If you want to inspect once:
-    // console.log("Delta 24hrTicker raw:", body);
+    const result = data?.result;
+    if (!result) {
+      console.log("No result in Delta ticker response");
+      return null;
+    }
 
-    // 24hrTicker schema is directly the ticker object, no "result" wrapper.
-    // Pick the field you want to show:
-    const rawPrice = body.mark_price ?? body.last_price ?? body.close ?? null;
+    // Choose which field to use; mark_price often matches site best
+    const rawPrice =
+      result.mark_price ?? result.last_price ?? result.close ?? null;
 
     if (!rawPrice) {
-      console.log("No usable price field in Delta 24hrTicker");
+      console.log("No usable price field in Delta ticker");
       return null;
     }
 
     return formatToTwoDecimals(rawPrice);
   } catch (err) {
-    console.error("Delta node client error:", err);
+    console.error("Delta API error:", err);
     return null;
   }
 }
